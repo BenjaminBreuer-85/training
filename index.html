@@ -235,12 +235,19 @@ svg .gr{stroke:var(--ink);stroke-width:1.6;opacity:.22}
 .cal .wd{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.06em;color:var(--ink-soft);
   text-align:center;padding-bottom:2px}
 .cal .c{aspect-ratio:1;border:1px solid var(--rule);border-radius:2px;background:var(--card);
-  display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;
-  font-size:10px;color:var(--ink-soft);position:relative}
-.cal .c.has{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
-.cal .c.rest{background:transparent;border-color:var(--ink-soft);color:var(--ink-soft);font-weight:700}
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-family:"JetBrains Mono",monospace;color:var(--ink-soft);position:relative;overflow:hidden}
+.cal .dnum{font-size:9px;line-height:1;opacity:.7;white-space:nowrap}
+.cal .c.mstart .dnum{opacity:1;font-weight:700}
+.cal .c.mstart{border-color:var(--ink-soft)}
+.cal .unum{font-size:12px;line-height:1;font-weight:700}
+.cal .c.has{background:var(--acc);border-color:var(--acc);color:#fff}
+.cal .c.has .dnum{opacity:.72}
+.cal .c.rest{background:transparent;border-color:var(--ink-soft);color:var(--ink-soft)}
 .cal .c.today{outline:2px solid var(--ink);outline-offset:1px}
 .cal .c.fut{opacity:.35}
+.calrange{margin:0 0 7px;font-family:"JetBrains Mono",monospace;font-size:10px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
 .calleg{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;font-family:"JetBrains Mono",monospace;
   font-size:10px;color:var(--ink-soft)}
 .sessions{list-style:none;margin:14px 0 0;padding:0}
@@ -251,6 +258,23 @@ svg .gr{stroke:var(--ink);stroke-width:1.6;opacity:.22}
 .sessions .del{margin-left:auto;appearance:none;border:none;background:none;color:var(--ink-soft);
   cursor:pointer;font-size:13px;padding:2px 4px}
 .sessions .del:hover{color:#9B3226}
+
+.dateline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;
+  padding-top:11px;border-top:1px solid rgba(255,255,255,.15)}
+.dateline label{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.6}
+.dateline input[type=date]{font-family:"JetBrains Mono",monospace;font-size:12px;padding:6px 8px;
+  border:1px solid rgba(255,255,255,.38);border-radius:2px;background:transparent;color:#fff}
+.today.past{outline:2px solid var(--acc);outline-offset:2px}
+.today.past .lbl{color:#fff;opacity:1;background:var(--acc);display:inline-block;padding:3px 8px;border-radius:2px}
+.askdone{margin-top:10px;padding:10px 11px;border-radius:2px;
+  background:color-mix(in srgb, var(--acc) 12%, transparent);
+  border:1px solid var(--acc);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.askdone span{flex:1 1 100%;font-size:13px;color:var(--ink)}
+.askdone button{appearance:none;font-family:"JetBrains Mono",monospace;font-size:11px;
+  padding:6px 10px;border-radius:2px;cursor:pointer;border:1px solid var(--acc)}
+.askdone .yes{background:var(--acc);color:#fff}
+.askdone .later{background:transparent;color:var(--ink-soft);border-color:var(--rule)}
 
 /* ---- Uebungs-Editor ---- */
 .ex{flex-wrap:wrap}
@@ -340,6 +364,7 @@ svg .gr{stroke:var(--ink);stroke-width:1.6;opacity:.22}
       <span class="chev" aria-hidden="true">&#9662;</span>
     </button>
     <div class="day-body" id="rh-b" hidden>
+      <p class="calrange" id="calrange"></p>
       <div class="cal" id="cal"></div>
       <div class="calleg" id="calleg"></div>
       <div class="stats" id="sstats"></div>
@@ -574,7 +599,9 @@ window.UNITS=[{"id": "d1", "label": "Brust / Bauch", "short": "1"}, {"id": "d2",
   }
 
   function iso(d){return d.toISOString().slice(0,10);}
-  function today(){return iso(new Date());}
+  function today(){var n=new Date();n.setMinutes(n.getMinutes()-n.getTimezoneOffset());return iso(n);}
+  var ENTRY=today();
+  function isToday(){return ENTRY===today();}
   function de(s){var p=s.split('-');return p[2]+'.'+p[1]+'.';}
   function num(x){return Math.round(x*10)/10;}
 
@@ -680,7 +707,6 @@ window.UNITS=[{"id": "d1", "label": "Brust / Bauch", "short": "1"}, {"id": "d2",
   function paintAll(){
     document.querySelectorAll('.log').forEach(paintCard);
     fillSelect(); paintDev(); paintToday(); paintCal(); paintDayStats();
-    openDay(nextUnit(),false);
     var n=document.getElementById('storenote');
     n.textContent =
       STMODE==='local'  ? 'Dauerhaft im Browser gespeichert · bleibt auch bei Updates der Seite erhalten. Gelegentlich sichern schadet trotzdem nicht.' :
@@ -698,13 +724,14 @@ window.UNITS=[{"id": "d1", "label": "Brust / Bauch", "short": "1"}, {"id": "d2",
       if(!w&&!r){wi.focus();return;}
       var sl=box.dataset.ex;
       DB[sl]=DB[sl]||[];
-      var d=today();
+      var d=ENTRY;
       var i=DB[sl].findIndex(function(e){return e.d===d;});
       if(i>=0) DB[sl][i]={d:d,w:w,r:r}; else DB[sl].push({d:d,w:w,r:r});
       save(); paintCard(box); fillSelect(); paintDev();
       wi.value=''; ri.value='';
       b.textContent='Gesichert'; b.classList.add('ok');
       setTimeout(function(){b.textContent='Sichern';b.classList.remove('ok');},1400);
+      askDone(box);
       return;
     }
     if(b.classList.contains('btn-hist')&&box){
@@ -724,6 +751,24 @@ window.UNITS=[{"id": "d1", "label": "Brust / Bauch", "short": "1"}, {"id": "d2",
       return;
     }
   });
+
+  var ASKED={};
+  function askDone(box){
+    var sec=box.closest('.day'); if(!sec)return;
+    var unit=sec.id; if(!UMAP[unit])return;
+    if(ASKED[ENTRY])return;
+    if(ST.sessions.some(function(x){return x.d===ENTRY;}))return;
+    var old=box.querySelector('.askdone'); if(old)old.remove();
+    var w=document.createElement('div');
+    w.className='askdone';
+    w.innerHTML='<span>Training '+(isToday()?'heute':'am '+de(ENTRY))+
+      ' als erledigt eintragen?</span>'+
+      '<button type="button" class="yes">'+UMAP[unit].label+' ✓</button>'+
+      '<button type="button" class="later">Später</button>';
+    box.appendChild(w);
+    w.querySelector('.yes').onclick=function(){logSession(unit);w.remove();};
+    w.querySelector('.later').onclick=function(){ASKED[ENTRY]=true;w.remove();};
+  }
 
   document.addEventListener('keydown',function(ev){
     if(ev.key!=='Enter')return;
@@ -957,41 +1002,57 @@ window.UNITS=[{"id": "d1", "label": "Brust / Bauch", "short": "1"}, {"id": "d2",
     return UNITS[(i+1)%UNITS.length].id;
   }
   function logSession(unit,d){
-    d=d||today();
+    d=d||ENTRY;
     ST.sessions=ST.sessions.filter(function(x){return x.d!==d;});
     ST.sessions.push({d:d,u:unit});
     save(); paintToday(); paintCal(); paintDayStats();
+    document.querySelectorAll('.askdone').forEach(function(n){n.remove();});
   }
   function paintToday(){
-    var box=document.getElementById('today'), t=today();
+    var box=document.getElementById('today'), t=ENTRY;
+    box.classList.toggle('past',!isToday());
     var mine=sessions().filter(function(x){return x.d===t;})[0];
     var nx=nextUnit(), u=UMAP[nx];
     var opts=UNITS.map(function(x){return '<option value="'+x.id+'"'+(x.id===nx?' selected':'')+'>Tag '+x.short+' · '+x.label+'</option>';}).join('');
     var last=sessions().filter(function(x){return x.u!=='rest';}).slice(-1)[0];
-    var since=last? Math.round((Date.parse(t)-Date.parse(last.d))/86400000) : null;
-    var meta = last ? ('Zuletzt: '+UMAP[last.u].label+' vor '+(since===0?'heute':since===1?'1 Tag':since+' Tagen'))
+    var since=last? Math.round((Date.parse(today())-Date.parse(last.d))/86400000) : null;
+    var meta = last ? ('Zuletzt: '+UMAP[last.u].label+' '+(since<=0?'heute':since===1?'vor 1 Tag':'vor '+since+' Tagen'))
                     : 'Noch keine Einheit erfasst';
-    var html='<p class="lbl">Als Nächstes dran</p><h2>'+u.label+'</h2>'+
+    var html='<p class="lbl">'+(isToday()?'Als Nächstes dran':'Eintrag für '+de(ENTRY))+'</p><h2>'+u.label+'</h2>'+
       '<p class="meta">'+meta+' · <a class="jump" href="#'+nx+'">zum Tag springen</a></p>';
     if(mine){
-      html+='<div class="done">✓ <b>Heute: '+(mine.u==='rest'?'Ruhetag':UMAP[mine.u].label)+'</b>'+
+      html+='<div class="done">✓ <b>'+(isToday()?'Heute: ':de(ENTRY)+' ')+(mine.u==='rest'?'Ruhetag':UMAP[mine.u].label)+'</b>'+
             '<button type="button" id="undo" style="margin-left:auto">Rückgängig</button></div>';
     }
     html+='<div class="acts">'+
       '<button type="button" class="pri" id="doneBtn">Erledigt ✓</button>'+
       '<button type="button" id="restBtn">Ruhetag</button>'+
       '<select id="unitSel" aria-label="Anderen Tag eintragen">'+opts+'</select>'+
-      '<button type="button" id="pickBtn">Eintragen</button></div>';
+      '<button type="button" id="pickBtn">Eintragen</button></div>'+
+      '<div class="dateline"><label for="entryDate">Eintrag für</label>'+
+      '<input type="date" id="entryDate" value="'+ENTRY+'" max="'+today()+'">'+
+      (isToday()?'':'<button type="button" id="dToday">Zurück auf heute</button>')+'</div>';
     box.innerHTML=html;
     document.getElementById('doneBtn').onclick=function(){logSession(nextUnit());};
     document.getElementById('restBtn').onclick=function(){logSession('rest');};
     document.getElementById('pickBtn').onclick=function(){logSession(document.getElementById('unitSel').value);};
+    var di=document.getElementById('entryDate');
+    di.onchange=function(){
+      ENTRY = di.value || today();
+      document.querySelectorAll('.askdone').forEach(function(n){n.remove();});
+      paintToday();
+    };
+    var dt=document.getElementById('dToday');
+    if(dt) dt.onclick=function(){ENTRY=today();paintToday();};
     var ub=document.getElementById('undo');
     if(ub) ub.onclick=function(){
       ST.sessions=ST.sessions.filter(function(x){return x.d!==t;});
       save(); paintToday(); paintCal();
     };
   }
+  var MON=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  var MONL=['Januar','Februar','März','April','Mai','Juni','Juli','August',
+            'September','Oktober','November','Dezember'];
   function paintCal(){
     var cal=document.getElementById('cal'), list=document.getElementById('sesslist');
     var map={}; ST.sessions.forEach(function(x){map[x.d]=x.u;});
@@ -1002,11 +1063,20 @@ window.UNITS=[{"id": "d1", "label": "Brust / Bauch", "short": "1"}, {"id": "d2",
     for(var i=0;i<42;i++){
       var d=new Date(start); d.setDate(start.getDate()+i);
       var k=iso(d), u=map[k], fut=d>t, isT=(k===today());
-      var cls='c'+(u&&u!=='rest'?' has':'')+(u==='rest'?' rest':'')+(fut?' fut':'')+(isT?' today':'');
-      var lab=u? (u==='rest'?'R':UMAP[u].short) : d.getDate();
+      var first=(d.getDate()===1||i===0);
+      var cls='c'+(u&&u!=='rest'?' has':'')+(u==='rest'?' rest':'')+(fut?' fut':'')+
+              (isT?' today':'')+(first?' mstart':'');
+      var lab=u? (u==='rest'?'R':UMAP[u].short) : '';
       var ttl=k+(u?' – '+(u==='rest'?'Ruhetag':UMAP[u].label):'');
-      cells.push('<div class="'+cls+'" title="'+ttl+'">'+lab+'</div>');
+      var dl=first ? d.getDate()+'. '+MON[d.getMonth()] : d.getDate();
+      cells.push('<div class="'+cls+'" title="'+ttl+'">'+
+        '<span class="dnum">'+dl+'</span>'+
+        (lab?'<span class="unum">'+lab+'</span>':'')+'</div>');
     }
+    var last=new Date(start); last.setDate(start.getDate()+41);
+    document.getElementById('calrange').textContent =
+      MONL[start.getMonth()] + (start.getFullYear()!==last.getFullYear()? ' '+start.getFullYear():'') +
+      ' – ' + MONL[last.getMonth()] + ' ' + last.getFullYear();
     cal.innerHTML='<div class="wd">Mo</div><div class="wd">Di</div><div class="wd">Mi</div>'+
       '<div class="wd">Do</div><div class="wd">Fr</div><div class="wd">Sa</div><div class="wd">So</div>'+
       cells.join('');
